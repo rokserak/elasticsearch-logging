@@ -14,32 +14,13 @@ services:
       - "9300:9300"
     environment:
       ES_JAVA_OPTS: "-Xmx256m -Xms256m"
-      ELASTIC_PASSWORD: changeme
+      ELASTIC_USERNAME: "${ELASTIC_USERNAME-elastic}"
+      ELASTIC_PASSWORD: "${ELASTIC_PASSWORD-changeme}"
       # Use single node discovery in order to disable production mode and avoid bootstrap checks.
       # see: https://www.elastic.co/guide/en/elasticsearch/reference/current/bootstrap-checks.html
       discovery.type: single-node
     networks:
-      - elk
-
-  logstash:
-    build:
-      context: logstash/
-      args:
-        ELK_VERSION: $ELK_VERSION
-    volumes:
-      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro,z
-      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro,z
-    ports:
-      - "5044:5044"
-      - "5000:5000/tcp"
-      - "5000:5000/udp"
-      - "9600:9600"
-    environment:
-      LS_JAVA_OPTS: "-Xmx256m -Xms256m"
-    networks:
-      - elk
-    depends_on:
-      - elasticsearch
+      - default
 
   kibana:
     build:
@@ -50,14 +31,37 @@ services:
       - ./kibana/config/kibana.yml:/usr/share/kibana/config/kibana.yml:ro,z
     ports:
       - "5601:5601"
+    environment:
+      ELASTIC_USERNAME: "${ELASTIC_USERNAME-elastic}"
+      ELASTIC_PASSWORD: "${ELASTIC_PASSWORD-changeme}"
+      ELASTIC_HOST: "${ELASTIC_HOST-http://elasticsearch:9200}"
     networks:
-      - elk
+      - default
+    depends_on:
+      - elasticsearch
+
+  filebeat:
+    build:
+      context: extensions/filebeat/
+      args:
+        ELK_VERSION: $ELK_VERSION
+    environment:
+      ELASTIC_USERNAME: "${ELASTIC_USERNAME-elastic}"
+      ELASTIC_PASSWORD: "${ELASTIC_PASSWORD-changeme}"
+      ELASTIC_HOST: "${ELASTIC_HOST-http://elasticsearch:9200}"
+    volumes:
+      - ./extensions/filebeat/config/filebeat.yml:/usr/share/filebeat/config/filebeat.yml:ro,z
+      - /var/lib/docker:/var/lib/docker:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - default
     depends_on:
       - elasticsearch
 
 networks:
-  elk:
-    driver: bridge
+  default:
+    external:
+      name: external-network
 
 volumes:
   elasticsearch:

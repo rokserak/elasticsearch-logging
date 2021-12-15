@@ -12,33 +12,15 @@ services:
         target: /usr/share/elasticsearch/config/elasticsearch.yml
     environment:
       ES_JAVA_OPTS: "-Xmx256m -Xms256m"
-      ELASTIC_PASSWORD: changeme
+      ELASTIC_USERNAME: "${ELASTIC_USERNAME-elastic}"
+      ELASTIC_PASSWORD: "${ELASTIC_PASSWORD-changeme}"
       # Use single node discovery in order to disable production mode and avoid bootstrap checks.
       # see: https://www.elastic.co/guide/en/elasticsearch/reference/current/bootstrap-checks.html
       discovery.type: single-node
       # Force publishing on the 'elk' overlay.
       network.publish_host: _eth0_
     networks:
-      - elk
-    deploy:
-      mode: replicated
-      replicas: 1
-
-  logstash:
-    image: docker.elastic.co/logstash/logstash:7.16.1
-    ports:
-      - "5044:5044"
-      - "5000:5000"
-      - "9600:9600"
-    configs:
-      - source: logstash_config
-        target: /usr/share/logstash/config/logstash.yml
-      - source: logstash_pipeline
-        target: /usr/share/logstash/pipeline/logstash.conf
-    environment:
-      LS_JAVA_OPTS: "-Xmx256m -Xms256m"
-    networks:
-      - elk
+      - default
     deploy:
       mode: replicated
       replicas: 1
@@ -50,8 +32,32 @@ services:
     configs:
       - source: kibana_config
         target: /usr/share/kibana/config/kibana.yml
+    environment:
+      ELASTIC_USERNAME: "${ELASTIC_USERNAME-elastic}"
+      ELASTIC_PASSWORD: "${ELASTIC_PASSWORD-changeme}"
+      ELASTIC_HOST: "${ELASTIC_HOST-http://elasticsearch:9200}"
     networks:
-      - elk
+      - default
+    deploy:
+      mode: replicated
+      replicas: 1
+
+  filebeat:
+    build:
+      context: extensions/filebeat/
+      args:
+        ELK_VERSION: $ELK_VERSION
+    configs:
+      - source: filebeat_config
+        target: /usr/share/filebeat/config/filebeat.yml
+    environment:
+      ELASTIC_USERNAME: "${ELASTIC_USERNAME-elastic}"
+      ELASTIC_PASSWORD: "${ELASTIC_PASSWORD-changeme}"
+      ELASTIC_HOST: "${ELASTIC_HOST-http://elasticsearch:9200}"
+    volumes:
+      - ./extensions/filebeat/config/filebeat.yml:/usr/share/filebeat/config/filebeat.yml:ro,z
+    networks:
+      - default
     deploy:
       mode: replicated
       replicas: 1
@@ -60,13 +66,12 @@ configs:
 
   elastic_config:
     file: ./elasticsearch/config/elasticsearch.yml
-  logstash_config:
-    file: ./logstash/config/logstash.yml
-  logstash_pipeline:
-    file: ./logstash/pipeline/logstash.conf
   kibana_config:
     file: ./kibana/config/kibana.yml
+  filebeat_config:
+    file: ./extensions/filebeat/config/filebeat.yml
 
 networks:
-  elk:
-    driver: overlay
+  default:
+    external:
+      name: external-network

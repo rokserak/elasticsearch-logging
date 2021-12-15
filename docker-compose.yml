@@ -20,7 +20,7 @@ services:
       # see: https://www.elastic.co/guide/en/elasticsearch/reference/current/bootstrap-checks.html
       discovery.type: single-node
     networks:
-      - default
+      - elk
 
   kibana:
     build:
@@ -36,7 +36,7 @@ services:
       ELASTIC_PASSWORD: "${ELASTIC_PASSWORD-changeme}"
       ELASTIC_HOST: "${ELASTIC_HOST-http://elasticsearch:9200}"
     networks:
-      - default
+      - elk
     depends_on:
       - elasticsearch
 
@@ -54,14 +54,13 @@ services:
       - /var/lib/docker:/var/lib/docker:ro
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
-      - default
+      - elk
     depends_on:
       - elasticsearch
 
 networks:
-  default:
-    external:
-      name: external-network
+  elk:
+    driver: bridge
 
 volumes:
   elasticsearch:
